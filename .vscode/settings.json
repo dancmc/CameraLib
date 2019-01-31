@@ -1,0 +1,20 @@
+{
+    "lumin_mabu_file": "CameraLib.mabu",
+    "lumin_package_name": "CameraLib",
+    "lumin_exe_name": "CameraLib",
+    "C_Cpp.default.includePath": [
+                "${workspaceFolder}/**",
+                "${config.lumin_sdk}/include/runtime/app",
+                "${config.lumin_sdk}/include/runtime/core",
+                "${config.lumin_sdk}/include/runtime/external",
+                "${config.lumin_sdk}/include/runtime/intergen",
+                "${config.lumin_sdk}/include/runtime/loader",
+                "${config.lumin_sdk}/include/runtime/uikit",
+                "${config.lumin_sdk}/include/runtime/util",
+                "${config.lumin_sdk}/include/",
+                "${config.lumin_sdk}/lumin/usr/include",
+                "/Users/daniel/Downloads/UnityHeaders"
+                ],
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.default.cppStandard": "c++11"
+}
