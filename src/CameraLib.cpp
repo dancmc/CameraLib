@@ -54,7 +54,7 @@
 #include "CameraLib.h"
 
 
-static GLuint textureHandle;
+static unsigned char* textureHandle;
 static IUnityInterfaces* s_UnityInterfaces = NULL;
 static IUnityGraphics* s_Graphics = NULL;
 static UnityGfxRenderer s_RendererType = kUnityGfxRendererNull;
@@ -83,6 +83,7 @@ static UnityGfxRenderer s_RendererType = kUnityGfxRendererNull;
     static uint8_t tmp2[960 * 540 * 4];
     static uint8_t tmp[1280 * 720 * 3];
     static uint8_t tmpwhite[1280 * 720 * 3];
+    GLuint holdingTexture;
 
     // static const char *cameraVsh = "\
 //     #version 330\n\
@@ -159,7 +160,7 @@ static UnityGfxRenderer s_RendererType = kUnityGfxRendererNull;
 in vec2 TexCoord;\n\
 out vec4 FragColor;\n\
 \n\
-uniform samplerExternalOES texture1; \n\
+uniform sampler2D texture1; \n\
 \n\
 void main(){\n\
     FragColor = texture2D(texture1, TexCoord);\n\
@@ -195,6 +196,7 @@ void main()\n\
 
 extern "C"
 {
+    
     const char application_name[] = "com.company.livestream";
 
     // Callback type example - callback is a function taking an int
@@ -218,13 +220,13 @@ extern "C"
         GLenum err;
         while ((err = glGetError()) != GL_NO_ERROR)
         {
-            ML_LOG(Info, ""+err, application_name);
+            ci(err);
         }
 
         EGLenum err1;
         while ((err1 = eglGetError()) != EGL_SUCCESS)
         {
-            ML_LOG(Info, ""+err1, application_name);
+            ci(err1);
         }
     }
 
@@ -236,6 +238,7 @@ extern "C"
                          const GLchar *message,
                          const void *userParam)
     {
+        
         char s[100];
         sprintf(s, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
                 (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), type, severity, message);
@@ -273,11 +276,14 @@ extern "C"
         cb(sizeof(buffer), buffer);
     }
 
-    void SetTextureFromUnity(void *th)
+    void SetTextureFromUnity(unsigned char *th)
     {
 
-        textureHandle = (GLuint)(size_t)th;
-        ML_LOG(Info, "Unity Texture set "+ (int64_t)th, application_name);
+        
+        textureHandle = th;
+        ML_LOG(Info, "Unity Texture set" , application_name);
+        ci(sizeof(th));
+        ci((GLuint)(size_t)th);
     }
 
     
@@ -346,6 +352,12 @@ extern "C"
         void unmakeCurrent();
     };
 
+    EGLint context_attribs[] = {
+            EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+            EGL_CONTEXT_MINOR_VERSION_KHR, 3,
+            EGL_NONE};
+    EGLConfig egl_config = nullptr;
+
     graphics_context_t::graphics_context_t()
     {
         ML_LOG(Info, "Creating context", application_name);
@@ -364,14 +376,10 @@ extern "C"
             EGL_DEPTH_SIZE, 24,
             EGL_STENCIL_SIZE, 8,
             EGL_NONE};
-        EGLConfig egl_config = nullptr;
+        
         EGLint config_size = 0;
         eglChooseConfig(egl_display, config_attribs, &egl_config, 1, &config_size);
 
-        EGLint context_attribs[] = {
-            EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
-            EGL_CONTEXT_MINOR_VERSION_KHR, 3,
-            EGL_NONE};
         egl_context = eglCreateContext(egl_display, egl_config, EGL_NO_CONTEXT, context_attribs);
     }
 
@@ -399,6 +407,7 @@ extern "C"
     }
 
     graphics_context_t graphics_context;
+    graphics_context_t graphics_context2;
 
     // Callbacks
     static void onStop(void *application_context)
@@ -440,13 +449,13 @@ extern "C"
 
         // Get ready to connect our GL context to the MLSDK graphics API
         graphics_context.makeCurrent();
-        glGenFramebuffers(1, &graphics_context.framebuffer_id);
+        // glGenFramebuffers(1, &graphics_context.framebuffer_id);
 
-        MLGraphicsOptions graphics_options = {0, MLSurfaceFormat_RGBA8UNorm, MLSurfaceFormat_D32Float};
-        MLHandle opengl_context = reinterpret_cast<MLHandle>(graphics_context.egl_context);
+        // MLGraphicsOptions graphics_options = {0, MLSurfaceFormat_RGBA8UNorm, MLSurfaceFormat_D32Float};
+        // MLHandle opengl_context = reinterpret_cast<MLHandle>(graphics_context.egl_context);
 
-        MLHandle graphics_client = ML_INVALID_HANDLE;
-        MLGraphicsCreateClientGL(&graphics_options, opengl_context, &graphics_client);
+        // MLHandle graphics_client = ML_INVALID_HANDLE;
+        // MLGraphicsCreateClientGL(&graphics_options, opengl_context, &graphics_client);
 
         checkError();
 
@@ -455,7 +464,7 @@ extern "C"
         checkError();
         } else {
             ML_LOG(Info, "Make Unity Current", application_name);
-            // makeUnityCurrent();
+            
         }
 
         // create shaders
@@ -520,6 +529,7 @@ extern "C"
         glBindFramebuffer(GL_FRAMEBUFFER, cameraOutFbo);
         checkError();
         ML_LOG(Info, "Bind texture to camerafbo", application_name);
+        // TODO change this
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, cameraOutTexture, 0);
         checkError();
 
@@ -542,12 +552,15 @@ extern "C"
         // checkError();
 
         ML_LOG(Info, "Bind content texture", application_name);
-        glBindTexture(GL_TEXTURE_2D, textureHandle);
+        glBindTexture(GL_TEXTURE_2D, (GLuint)(size_t)textureHandle);
         checkError();
 
         ML_LOG(Info, "Context Texture Params", application_name);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // suspect might need to bind framebuffer, bind texturehandle as the color attachment of framebuffer then 
+        // probably don't want to use glTexImage2D as not generating the texture
         // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1920, 1080, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         checkError();
 
@@ -592,17 +605,17 @@ extern "C"
         checkError();
 
         ML_LOG(Info, "initialised", application_name);
-        if(fromUnity){
-            eglMakeCurrent(NULL, EGL_NO_SURFACE, EGL_NO_SURFACE, NULL);
-        }
+        
+        
     }
 
 
 
 
     void SetFrame(MLHandle output){
-
         
+
+        graphics_context.makeCurrent();
         ML_LOG(Info, "buffer callback", application_name);
 
         EGLImageKHR image = eglCreateImageKHR(eglGetDisplay(EGL_DEFAULT_DISPLAY), EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, (EGLClientBuffer)(void *)output, nullptr);
@@ -641,15 +654,15 @@ extern "C"
         checkError();
 
         ML_LOG(Info, "TexturesBind", application_name);
-        glBindTexture(GL_TEXTURE_EXTERNAL_OES, cameraInTexture);
-        // ci(textureHandle);
-        // glBindTexture(GL_TEXTURE_2D, textureHandle);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // glBindTexture(GL_TEXTURE_EXTERNAL_OES, cameraInTexture);
+        ci((GLuint)(size_t)textureHandle);
+        glBindTexture(GL_TEXTURE_2D, (GLuint)(size_t)textureHandle);
+        // glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        // glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         checkError();
 
         ML_LOG(Info, "TexturesEGL", application_name);
-        glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, image);
+        // glEGLImageTargetTexture2DOES(GL_TEXTURE_EXTERNAL_OES, image);
         checkError();
 
         glUseProgram(cameraProgram);
@@ -683,10 +696,10 @@ extern "C"
 
         ML_LOG(Info, "Read1 Pixels", application_name);
         // glClearColor(0.5, 0.0, 0.0, 0.0);
-        // glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, tmp2);
-        glReadPixels(0, 0, 960, 540, GL_RGBA, GL_UNSIGNED_BYTE, tmp2);
 
+        glReadPixels(0, 0, 960, 540, GL_RGBA, GL_UNSIGNED_BYTE, tmp2);
         
+        graphics_context.unmakeCurrent();
     }
 
      void preview_buffer_callback(MLHandle output, void *data)
@@ -720,15 +733,28 @@ extern "C"
     }
 
     unsigned char* GrabFrame(){
-
-
-        
-        
-            
+       
             MLHandle output;
             MLCameraGetPreviewStream(&output);
             SetFrame(output);
             return tmp2;
+    }
+
+    unsigned char* GrabTestFrame(){
+    //     glGenFramebuffers(1, &unityFbo);
+    // glBindFramebuffer(GL_FRAMEBUFFER, unityFbo);
+    
+    // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,cameraOutTexture, 0);
+    // ci(glCheckFramebufferStatus(GL_FRAMEBUFFER));
+    // ML_LOG(Info, "OPENGL READ PIXELS", application_name);
+    // glReadPixels(0, 0, 960, 540, GL_RGB, GL_UNSIGNED_BYTE, tmp);
+
+    // ci(tmp[100]);
+    // ci(tmp[101]);
+    // ci(tmp[102]);
+
+
+            return tmp;
     }
 
 
@@ -770,6 +796,26 @@ extern "C"
         initialiseEGL(false);
                 initialised = true;
             }
+    }
+
+    int InitialiseExternalTexture(){
+        EGLContext cc =  eglGetCurrentContext();
+    EGLDisplay dd =  eglGetCurrentDisplay();
+    EGLSurface sr =  eglGetCurrentSurface(EGL_READ);
+    EGLSurface sd =  eglGetCurrentSurface(EGL_DRAW);
+        graphics_context2.makeCurrent();
+        glGenTextures(1, &holdingTexture);
+        ci(holdingTexture);
+            glBindTexture(GL_TEXTURE_2D, holdingTexture);
+            uint8_t tmptmp[960 * 540 * 4];
+            memset(tmptmp, 255, sizeof(tmptmp));
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 960, 540, 0, GL_RGBA, GL_UNSIGNED_BYTE, tmptmp);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            graphics_context2.unmakeCurrent();
+            eglMakeCurrent(dd,sd,sr,cc);
+
+            return holdingTexture;
     }
 }
 
@@ -827,25 +873,50 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API
     
 }
 
+
+EGLContext shared_context;
+
+
 // Plugin function to handle a specific rendering event
 static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 {
     std::string a = "NATIVE RENDER ";
-    std::string result = a + std::to_string(textureHandle);
+    std::string result = a + std::to_string((GLuint)(size_t) textureHandle);
     
     ML_LOG(Info, result.c_str(), application_name);
-    // makeUnityCurrent();
-    if(!initialisedUnity){
-        memset(tmpwhite, 255, sizeof(tmpwhite));
-        glGenFramebuffers(1, &unityFbo);
-        initialisedUnity = true;
-        initialiseEGL(true);
-    }
-    
+
+    EGLContext cc =  eglGetCurrentContext();
+    EGLDisplay dd =  eglGetCurrentDisplay();
+    EGLSurface sr =  eglGetCurrentSurface(EGL_READ);
+    EGLSurface sd =  eglGetCurrentSurface(EGL_DRAW);
+
+    // shared_context = eglCreateContext(dd, egl_config, cc, context_attribs);
+    // eglMakeCurrent(eglGetDisplay(EGL_DEFAULT_DISPLAY), EGL_NO_SURFACE, EGL_NO_SURFACE, shared_context);
+     
+     checkError();
+
+    // EGLint imageAttributes[] = { 
+    // EGL_GL_TEXTURE_LEVEL_KHR, 0, // mip map level to reference 
+    // EGL_IMAGE_PRESERVED_KHR, EGL_FALSE, 
+    // EGL_NONE 
+    // }; 
+    // EGLImageKHR eglImage = eglCreateImageKHR(eglGetCurrentDisplay(), eglGetCurrentContext(), GL_TEXTURE_2D, (EGLClientBuffer)textureHandle, imageAttributes);
+    //  if (eglImage == EGL_NO_IMAGE_KHR)
+    //     {
+    //         ML_LOG(Info, "EGLImage creation error", application_name);
+    //     }
+
+    glGenFramebuffers(1, &unityFbo);
     glBindFramebuffer(GL_FRAMEBUFFER, unityFbo);
-    // glBindTexture(GL_TEXTURE_2D, textureHandle);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureHandle, 0);
-    glReadPixels(0, 0, 1280, 720, GL_RGB, GL_UNSIGNED_BYTE, tmp);
+    // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, cameraOutTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, (GLuint)(size_t)textureHandle, 0);
+    ci(glCheckFramebufferStatus(GL_FRAMEBUFFER));
+    ML_LOG(Info, "OPENGL READ PIXELS", application_name);
+    glReadPixels(0, 0, 960, 540, GL_RGB, GL_UNSIGNED_BYTE, tmp);
+
+    
+
+    
 
     ci(tmp[100]);
     ci(tmp[101]);
@@ -853,8 +924,35 @@ static void UNITY_INTERFACE_API OnRenderEvent(int eventID)
 
     
     
+    graphics_context2.makeCurrent();
+    if(!initialisedUnity){
+        
+        memset(tmpwhite, 255, sizeof(tmpwhite));
+        initialisedUnity = true;
+        initialiseEGL(true);
+    }
 
-    // eglMakeCurrent(NULL, EGL_NO_SURFACE, EGL_NO_SURFACE, NULL);
+
+    
+    // Comment out this block if not trying to use rendertexture directly
+    // ML_LOG(Info, "Gen textures", application_name);
+    // glGenTextures(1, &cameraOutTexture);
+    // checkError();
+    // ML_LOG(Info, "Bind cameraout texture", application_name);
+    // glBindTexture(GL_TEXTURE_2D, cameraOutTexture);
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 960, 540, 0, GL_BGRA8_EXT, GL_UNSIGNED_BYTE, textureHandle);
+    // checkError();
+    
+    graphics_context2.unmakeCurrent();
+    eglMakeCurrent(dd,sd,sr,cc);
+
+    
+    
+
+    
+    
+    
+    
 }
     
 // Freely defined function to pass a callback to plugin-specific scripts
